@@ -1,38 +1,25 @@
+import java.io.*;
 import java.util.*;
 
 public class Main {
 
-    static class Reservation {
+    static class Reservation implements Serializable {
+        private String reservationId;
         private String guestName;
         private String roomType;
 
-        public Reservation(String guestName, String roomType) {
+        public Reservation(String reservationId, String guestName, String roomType) {
+            this.reservationId = reservationId;
             this.guestName = guestName;
             this.roomType = roomType;
         }
 
-        public String getGuestName() {
-            return guestName;
-        }
-
-        public String getRoomType() {
-            return roomType;
+        public void display() {
+            System.out.println(reservationId + " | " + guestName + " | " + roomType);
         }
     }
 
-    static class BookingQueue {
-        private Queue<Reservation> queue = new LinkedList<>();
-
-        public synchronized void add(Reservation r) {
-            queue.offer(r);
-        }
-
-        public synchronized Reservation get() {
-            return queue.poll();
-        }
-    }
-
-    static class RoomInventory {
+    static class RoomInventory implements Serializable {
         private Map<String, Integer> inventory = new HashMap<>();
 
         public RoomInventory() {
@@ -41,80 +28,80 @@ public class Main {
             inventory.put("Suite Room", 1);
         }
 
-        public synchronized boolean allocate(String type) {
-            int available = inventory.getOrDefault(type, 0);
-            if (available > 0) {
-                inventory.put(type, available - 1);
-                return true;
-            }
-            return false;
+        public Map<String, Integer> getInventory() {
+            return inventory;
         }
 
-        public synchronized void display() {
-            System.out.println("\nFinal Inventory:");
+        public void display() {
+            System.out.println("Inventory:");
             for (Map.Entry<String, Integer> e : inventory.entrySet()) {
                 System.out.println(e.getKey() + " : " + e.getValue());
             }
         }
     }
 
-    static class BookingProcessor extends Thread {
-        private BookingQueue queue;
-        private RoomInventory inventory;
+    static class BookingHistory implements Serializable {
+        private List<Reservation> history = new ArrayList<>();
 
-        public BookingProcessor(BookingQueue queue, RoomInventory inventory) {
-            this.queue = queue;
-            this.inventory = inventory;
+        public void add(Reservation r) {
+            history.add(r);
         }
 
-        public void run() {
-            while (true) {
-                Reservation r = queue.get();
-                if (r == null) break;
+        public List<Reservation> getAll() {
+            return history;
+        }
 
-                boolean success = inventory.allocate(r.getRoomType());
+        public void display() {
+            System.out.println("\nBooking History:");
+            for (Reservation r : history) {
+                r.display();
+            }
+        }
+    }
 
-                if (success) {
-                    System.out.println(Thread.currentThread().getName() +
-                            " Confirmed: " + r.getGuestName() +
-                            " -> " + r.getRoomType());
-                } else {
-                    System.out.println(Thread.currentThread().getName() +
-                            " Failed: " + r.getGuestName() +
-                            " -> " + r.getRoomType());
-                }
+    static class PersistenceService {
+
+        public void save(RoomInventory inventory, BookingHistory history) {
+            try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream("data.ser"))) {
+                out.writeObject(inventory);
+                out.writeObject(history);
+                System.out.println("\nData saved successfully.");
+            } catch (Exception e) {
+                System.out.println("\nError saving data.");
+            }
+        }
+
+        public Object[] load() {
+            try (ObjectInputStream in = new ObjectInputStream(new FileInputStream("data.ser"))) {
+                RoomInventory inventory = (RoomInventory) in.readObject();
+                BookingHistory history = (BookingHistory) in.readObject();
+                System.out.println("\nData loaded successfully.");
+                return new Object[]{inventory, history};
+            } catch (Exception e) {
+                System.out.println("\nNo valid data found. Starting fresh.");
+                return new Object[]{new RoomInventory(), new BookingHistory()};
             }
         }
     }
 
     public static void main(String[] args) {
-
         System.out.println("     Welcome to Book My Stay App      ");
 
-        BookingQueue queue = new BookingQueue();
-        RoomInventory inventory = new RoomInventory();
+        PersistenceService service = new PersistenceService();
 
-        queue.add(new Reservation("Rahul", "Single Room"));
-        queue.add(new Reservation("Priya", "Single Room"));
-        queue.add(new Reservation("Arun", "Single Room"));
-        queue.add(new Reservation("Kiran", "Suite Room"));
-        queue.add(new Reservation("Sneha", "Suite Room"));
+        Object[] data = service.load();
 
-        BookingProcessor t1 = new BookingProcessor(queue, inventory);
-        BookingProcessor t2 = new BookingProcessor(queue, inventory);
-
-        t1.start();
-        t2.start();
-
-        try {
-            t1.join();
-            t2.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        RoomInventory inventory = (RoomInventory) data[0];
+        BookingHistory history = (BookingHistory) data[1];
 
         inventory.display();
+        history.display();
 
-        System.out.println("\nConcurrent processing completed.");
+        history.add(new Reservation("RES201", "Rahul", "Single Room"));
+        history.add(new Reservation("RES202", "Priya", "Double Room"));
+
+        service.save(inventory, history);
+
+        System.out.println("\nSystem recovery and persistence completed.");
     }
 }
