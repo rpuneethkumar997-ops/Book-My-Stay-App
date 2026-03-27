@@ -2,88 +2,78 @@ import java.util.*;
 
 public class Main {
 
-    static class Reservation {
-        private String reservationId;
-        private String guestName;
-        private String roomType;
-
-        public Reservation(String reservationId, String guestName, String roomType) {
-            this.reservationId = reservationId;
-            this.guestName = guestName;
-            this.roomType = roomType;
-        }
-
-        public String getReservationId() {
-            return reservationId;
-        }
-
-        public String getGuestName() {
-            return guestName;
-        }
-
-        public String getRoomType() {
-            return roomType;
-        }
-
-        public void display() {
-            System.out.println("Reservation ID: " + reservationId +
-                    " | Guest: " + guestName +
-                    " | Room: " + roomType);
+    static class InvalidBookingException extends Exception {
+        public InvalidBookingException(String message) {
+            super(message);
         }
     }
 
-    static class BookingHistory {
-        private List<Reservation> history = new ArrayList<>();
+    static class RoomInventory {
+        private Map<String, Integer> inventory = new HashMap<>();
 
-        public void addReservation(Reservation r) {
-            history.add(r);
+        public RoomInventory() {
+            inventory.put("Single Room", 1);
+            inventory.put("Double Room", 1);
+            inventory.put("Suite Room", 0);
         }
 
-        public List<Reservation> getAllReservations() {
-            return history;
+        public int getAvailability(String type) throws InvalidBookingException {
+            if (!inventory.containsKey(type)) {
+                throw new InvalidBookingException("Invalid room type: " + type);
+            }
+            return inventory.get(type);
+        }
+
+        public void reduceAvailability(String type) throws InvalidBookingException {
+            int current = getAvailability(type);
+            if (current <= 0) {
+                throw new InvalidBookingException("No availability for room type: " + type);
+            }
+            inventory.put(type, current - 1);
         }
     }
 
-    static class BookingReportService {
+    static class BookingService {
+        private RoomInventory inventory;
 
-        public void displayAllBookings(List<Reservation> reservations) {
-            System.out.println("Booking History:\n");
-            for (Reservation r : reservations) {
-                r.display();
-            }
+        public BookingService(RoomInventory inventory) {
+            this.inventory = inventory;
         }
 
-        public void generateSummary(List<Reservation> reservations) {
-            Map<String, Integer> summary = new HashMap<>();
+        public void book(String guestName, String roomType) {
+            try {
+                if (guestName == null || guestName.trim().isEmpty()) {
+                    throw new InvalidBookingException("Guest name cannot be empty");
+                }
 
-            for (Reservation r : reservations) {
-                summary.put(r.getRoomType(),
-                        summary.getOrDefault(r.getRoomType(), 0) + 1);
-            }
+                int available = inventory.getAvailability(roomType);
 
-            System.out.println("\nBooking Summary:");
-            for (Map.Entry<String, Integer> entry : summary.entrySet()) {
-                System.out.println(entry.getKey() + " : " + entry.getValue());
+                if (available <= 0) {
+                    throw new InvalidBookingException("Room not available: " + roomType);
+                }
+
+                inventory.reduceAvailability(roomType);
+
+                System.out.println("Booking Confirmed: " + guestName + " -> " + roomType);
+
+            } catch (InvalidBookingException e) {
+                System.out.println("Booking Failed: " + e.getMessage());
             }
         }
     }
 
     public static void main(String[] args) {
+
         System.out.println("     Welcome to Book My Stay App      ");
 
-        BookingHistory history = new BookingHistory();
+        RoomInventory inventory = new RoomInventory();
+        BookingService service = new BookingService(inventory);
 
-        history.addReservation(new Reservation("RES101", "Rahul", "Single Room"));
-        history.addReservation(new Reservation("RES102", "Priya", "Double Room"));
-        history.addReservation(new Reservation("RES103", "Arun", "Suite Room"));
-        history.addReservation(new Reservation("RES104", "Kiran", "Single Room"));
+        service.book("Rahul", "Single Room");
+        service.book("", "Double Room");
+        service.book("Priya", "Suite Room");
+        service.book("Arun", "Invalid Room");
 
-        BookingReportService reportService = new BookingReportService();
-
-        reportService.displayAllBookings(history.getAllReservations());
-
-        reportService.generateSummary(history.getAllReservations());
-
-        System.out.println("\nReporting completed successfully.");
+        System.out.println("\nValidation completed.");
     }
 }
