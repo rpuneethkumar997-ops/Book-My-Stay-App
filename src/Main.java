@@ -1,38 +1,34 @@
 import java.util.*;
 
-public class Main{
+public class Main {
 
     static class Reservation {
-        private String reservationId;
+        private String guestName;
         private String roomType;
-        private String roomId;
-        private boolean active;
 
-        public Reservation(String reservationId, String roomType, String roomId) {
-            this.reservationId = reservationId;
+        public Reservation(String guestName, String roomType) {
+            this.guestName = guestName;
             this.roomType = roomType;
-            this.roomId = roomId;
-            this.active = true;
         }
 
-        public String getReservationId() {
-            return reservationId;
+        public String getGuestName() {
+            return guestName;
         }
 
         public String getRoomType() {
             return roomType;
         }
+    }
 
-        public String getRoomId() {
-            return roomId;
+    static class BookingQueue {
+        private Queue<Reservation> queue = new LinkedList<>();
+
+        public synchronized void add(Reservation r) {
+            queue.offer(r);
         }
 
-        public boolean isActive() {
-            return active;
-        }
-
-        public void cancel() {
-            this.active = false;
+        public synchronized Reservation get() {
+            return queue.poll();
         }
     }
 
@@ -40,88 +36,85 @@ public class Main{
         private Map<String, Integer> inventory = new HashMap<>();
 
         public RoomInventory() {
-            inventory.put("Single Room", 1);
+            inventory.put("Single Room", 2);
             inventory.put("Double Room", 1);
             inventory.put("Suite Room", 1);
         }
 
-        public void increaseAvailability(String type) {
-            inventory.put(type, inventory.getOrDefault(type, 0) + 1);
+        public synchronized boolean allocate(String type) {
+            int available = inventory.getOrDefault(type, 0);
+            if (available > 0) {
+                inventory.put(type, available - 1);
+                return true;
+            }
+            return false;
         }
 
-        public void display() {
-            System.out.println("\nCurrent Inventory:");
+        public synchronized void display() {
+            System.out.println("\nFinal Inventory:");
             for (Map.Entry<String, Integer> e : inventory.entrySet()) {
                 System.out.println(e.getKey() + " : " + e.getValue());
             }
         }
     }
 
-    static class BookingHistory {
-        private Map<String, Reservation> history = new HashMap<>();
-
-        public void add(Reservation r) {
-            history.put(r.getReservationId(), r);
-        }
-
-        public Reservation get(String id) {
-            return history.get(id);
-        }
-    }
-
-    static class CancellationService {
+    static class BookingProcessor extends Thread {
+        private BookingQueue queue;
         private RoomInventory inventory;
-        private BookingHistory history;
-        private Stack<String> rollbackStack = new Stack<>();
 
-        public CancellationService(RoomInventory inventory, BookingHistory history) {
+        public BookingProcessor(BookingQueue queue, RoomInventory inventory) {
+            this.queue = queue;
             this.inventory = inventory;
-            this.history = history;
         }
 
-        public void cancel(String reservationId) {
-            Reservation r = history.get(reservationId);
+        public void run() {
+            while (true) {
+                Reservation r = queue.get();
+                if (r == null) break;
 
-            if (r == null) {
-                System.out.println("Cancellation Failed: Reservation not found");
-                return;
+                boolean success = inventory.allocate(r.getRoomType());
+
+                if (success) {
+                    System.out.println(Thread.currentThread().getName() +
+                            " Confirmed: " + r.getGuestName() +
+                            " -> " + r.getRoomType());
+                } else {
+                    System.out.println(Thread.currentThread().getName() +
+                            " Failed: " + r.getGuestName() +
+                            " -> " + r.getRoomType());
+                }
             }
-
-            if (!r.isActive()) {
-                System.out.println("Cancellation Failed: Already cancelled");
-                return;
-            }
-
-            rollbackStack.push(r.getRoomId());
-
-            inventory.increaseAvailability(r.getRoomType());
-
-            r.cancel();
-
-            System.out.println("Cancellation Successful: " + reservationId + " | Room Released: " + r.getRoomId());
         }
     }
 
     public static void main(String[] args) {
+
         System.out.println("     Welcome to Book My Stay App      ");
 
+        BookingQueue queue = new BookingQueue();
         RoomInventory inventory = new RoomInventory();
-        BookingHistory history = new BookingHistory();
 
-        Reservation r1 = new Reservation("RES101", "Single Room", "SI101");
-        Reservation r2 = new Reservation("RES102", "Double Room", "DO201");
+        queue.add(new Reservation("Rahul", "Single Room"));
+        queue.add(new Reservation("Priya", "Single Room"));
+        queue.add(new Reservation("Arun", "Single Room"));
+        queue.add(new Reservation("Kiran", "Suite Room"));
+        queue.add(new Reservation("Sneha", "Suite Room"));
 
-        history.add(r1);
-        history.add(r2);
+        BookingProcessor t1 = new BookingProcessor(queue, inventory);
+        BookingProcessor t2 = new BookingProcessor(queue, inventory);
 
-        CancellationService service = new CancellationService(inventory, history);
+        t1.start();
+        t2.start();
 
-        service.cancel("RES101");
-        service.cancel("RES101");
-        service.cancel("INVALID");
+        try {
+            t1.join();
+            t2.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         inventory.display();
 
-        System.out.println("\nCancellation process completed.");
+        System.out.println("\nConcurrent processing completed.");
     }
 }
