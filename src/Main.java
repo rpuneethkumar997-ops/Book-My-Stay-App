@@ -1,107 +1,61 @@
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class Main {
 
-    abstract static class Room {
-        protected String roomType;
-        protected int beds;
-        protected double price;
+    static class Reservation {
+        private String guestName;
+        private String roomType;
 
-        public Room(String roomType, int beds, double price) {
+        public Reservation(String guestName, String roomType) {
+            this.guestName = guestName;
             this.roomType = roomType;
-            this.beds = beds;
-            this.price = price;
+        }
+
+        public String getGuestName() {
+            return guestName;
         }
 
         public String getRoomType() {
             return roomType;
         }
 
-        public abstract void displayDetails();
-    }
-
-    static class SingleRoom extends Room {
-        public SingleRoom() {
-            super("Single Room", 1, 1500.0);
-        }
-
-        public void displayDetails() {
-            System.out.println(roomType + " | Beds: " + beds + " | Price: ₹" + price);
+        public void display() {
+            System.out.println("Guest: " + guestName + " | Room: " + roomType);
         }
     }
 
-    static class DoubleRoom extends Room {
-        public DoubleRoom() {
-            super("Double Room", 2, 2500.0);
+    static class BookingRequestQueue {
+        private Queue<Reservation> queue;
+
+        public BookingRequestQueue() {
+            queue = new LinkedList<>();
         }
 
-        public void displayDetails() {
-            System.out.println(roomType + " | Beds: " + beds + " | Price: ₹" + price);
-        }
-    }
-
-    static class SuiteRoom extends Room {
-        public SuiteRoom() {
-            super("Suite Room", 3, 5000.0);
+        public void addRequest(Reservation reservation) {
+            queue.offer(reservation);
         }
 
-        public void displayDetails() {
-            System.out.println(roomType + " | Beds: " + beds + " | Price: ₹" + price);
-        }
-    }
-
-    static class RoomInventory {
-        private Map<String, Integer> inventory;
-
-        public RoomInventory() {
-            inventory = new HashMap<>();
-            inventory.put("Single Room", 5);
-            inventory.put("Double Room", 0);
-            inventory.put("Suite Room", 2);
-        }
-
-        public int getAvailability(String roomType) {
-            return inventory.getOrDefault(roomType, 0);
-        }
-    }
-
-    static class SearchService {
-        private RoomInventory inventory;
-
-        public SearchService(RoomInventory inventory) {
-            this.inventory = inventory;
-        }
-
-        public void search(Room[] rooms) {
-            System.out.println("Available Rooms:\n");
-            for (Room room : rooms) {
-                int available = inventory.getAvailability(room.getRoomType());
-                if (available > 0) {
-                    room.displayDetails();
-                    System.out.println("Available: " + available);
-                    System.out.println("----------------------");
-                }
+        public void displayQueue() {
+            System.out.println("Booking Requests (FIFO Order):\n");
+            for (Reservation r : queue) {
+                r.display();
             }
         }
     }
 
     public static void main(String[] args) {
+
         System.out.println("     Welcome to Book My Stay App      ");
 
+        BookingRequestQueue requestQueue = new BookingRequestQueue();
 
-        RoomInventory inventory = new RoomInventory();
+        requestQueue.addRequest(new Reservation("Rahul", "Single Room"));
+        requestQueue.addRequest(new Reservation("Priya", "Double Room"));
+        requestQueue.addRequest(new Reservation("Arun", "Suite Room"));
 
-        Room[] rooms = {
-                new SingleRoom(),
-                new DoubleRoom(),
-                new SuiteRoom()
-        };
+        requestQueue.displayQueue();
 
-        SearchService searchService = new SearchService(inventory);
-
-        searchService.search(rooms);
-
-        System.out.println("\nSearch completed successfully.");
+        System.out.println("\nRequests queued successfully.");
     }
 }
